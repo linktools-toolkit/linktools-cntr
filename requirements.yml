@@ -1,0 +1,9 @@
+dependencies:
+  - linktools
+  - GitPython
+  - jinja2
+  - pyyaml
+
+dev-dependencies: []
+
+optional-dependencies: {}
