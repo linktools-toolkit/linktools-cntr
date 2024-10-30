@@ -122,6 +122,6 @@ class Container(BaseContainer):
         )
 
         self.write_nginx_conf(
-            self.manager.config.get("FLARE_DOAMIN"),
+            self.get_config("FLARE_DOAMIN"),
             self.get_path("nginx.conf"),
         )

@@ -80,21 +80,21 @@ class ExposeMixin:
     expose_other = ExposeCategory("other", "Other")
 
     def load_config_url(self: "BaseContainer", key: str, *path: str):
-        url = self.manager.config.get(key, type=str, default=None)
+        url = self.get_config(key, type=str, default=None)
         if url:
             return utils.make_url(url, *path)
         return None
 
     def load_port_url(self: "BaseContainer", key: str, *path: str, https: bool = True):
-        port = self.manager.config.get(key, type=int, default=0)
+        port = self.get_config(key, type=int, default=0)
         if 0 < port < 65535:
             return utils.make_url(f"{'https' if https else 'http'}://{self.manager.host}:{port}", *path)
         return None
 
     def load_nginx_url(self: "BaseContainer", key: str, *path: str, https: bool = True):
-        domain = self.manager.config.get(key, type=str, default=None)
+        domain = self.get_config(key, type=str, default=None)
         if domain:
-            port = self.manager.config.get("HTTPS_PORT" if https else "HTTP_PORT", type=int)
+            port = self.get_config("HTTPS_PORT" if https else "HTTP_PORT", type=int)
             return utils.make_url(f"{'https' if https else 'http'}://{domain}:{port}/", *path)
         return None
 
@@ -122,7 +122,7 @@ class NginxMixin:
     def write_nginx_conf(self: "BaseContainer", domain: str, template: PathType, name: str = None, https: bool = True):
         nginx = self.manager.containers["nginx"]
         if domain and nginx.enable:
-            if not self.manager.config.get("HTTPS_ENABLE", type=bool):
+            if not self.get_config("HTTPS_ENABLE", type=bool):
                 https = False
             self.render_template(
                 nginx.get_path("https.conf" if https else "http.conf"),
@@ -466,7 +466,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
             container=self,
             config=config,
             user=self.manager.user,
-            docker_user=utils.lazy_load(self.manager.config.get, "DOCKER_USER"),
+            docker_user=utils.lazy_load(self.get_config, "DOCKER_USER"),
 
             mkdir=mkdir,
             chown=chown,

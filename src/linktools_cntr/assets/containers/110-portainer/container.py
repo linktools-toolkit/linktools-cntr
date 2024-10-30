@@ -51,6 +51,6 @@ class Container(BaseContainer):
 
     def on_starting(self):
         self.write_nginx_conf(
-            self.manager.config.get("PORTAINER_DOMAIN"),
+            self.get_config("PORTAINER_DOMAIN"),
             self.get_path("nginx.conf"),
         )

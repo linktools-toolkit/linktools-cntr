@@ -113,9 +113,3 @@ ct-cntr config edit --editor vim
 # 重新加载配置
 ct-cntr config reload 
 ```
-
-
-##### 参考
-
-1. [搭建homelab](https://github.com/ice-black-tea/cntr-homelab)
-2. [搭建redroid](https://github.com/redroid-rockchip)
