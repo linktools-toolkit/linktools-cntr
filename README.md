@@ -11,24 +11,22 @@ sudo apt-get update
 sudo apt-get install -y python3 python3-pip git docker-compose-plugin
 ```
 
-安装linktools库并添加homelab仓库
+安装linktools-cntr库
 
 ```bash
 # Install linktools library and add repository
-python3 -m pip install -U linktools linktools-cntr
-ct-cntr repo add https://github.com/ice-black-tea/cntr-homelab  # fetch code from remote repository
-ct-cntr repo update                                             # update code from remote repository
+python3 -m pip install -U linktools-cntr
 ```
 
 ## 容器部署
 
 ### Nas (主页、Nextcloud、...) 环境部署
 
-👉 [搭建文档](400-omv/README.md)
+👉 [搭建文档](https://github.com/ice-black-tea/cntr-homelab/blob/master/400-omv/README.md)
 
 ### Xray Server (websocket + ssl + vless) 环境搭建
 
-👉 [搭建文档](220-xray-server/README.md)
+👉 [搭建文档](https://github.com/ice-black-tea/cntr-homelab/blob/master/220-xray-server/README.md)
 
 ### Redroid (Redroid、Redroid-Builder) 环境搭建
 
