@@ -34,7 +34,7 @@ import shutil
 from typing import TYPE_CHECKING, Dict, Any, List, Union, Callable, Tuple, Set, TypeVar
 
 from filelock import FileLock
-from linktools import environ, utils, Config
+from linktools import utils, Config
 from linktools.decorator import cached_property
 from linktools.types import PathType
 from linktools.utils import join_path

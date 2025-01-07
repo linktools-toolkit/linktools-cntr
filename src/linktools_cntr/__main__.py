@@ -27,6 +27,7 @@
  /_==__==========__==_ooo__ooo=_/'   /___________,"
 """
 import contextlib
+import os
 import sys
 from argparse import Namespace, ArgumentParser
 from subprocess import SubprocessError
@@ -34,11 +35,12 @@ from typing import Optional, List, Type, Dict, Tuple, Any
 
 import yaml
 from git import GitCommandError
-from linktools import environ, ConfigError, utils
+from linktools import environ, utils
 from linktools.cli import BaseCommand, subcommand, SubCommandWrapper, subcommand_argument, SubCommandGroup, \
     BaseCommandGroup, SubCommand
 from linktools.cli.argparse import KeyValueAction, BooleanOptionalAction, ParserCompleter
 from linktools.rich import confirm, choose
+from linktools.types import ConfigError
 
 from .container import ContainerError, BaseContainer
 from .manager import ContainerManager
@@ -92,10 +94,10 @@ class RepoCommand(BaseCommandGroup):
             raise ContainerError("No repository found")
 
         if url is None:
-            index = choose("Choose repository you want to remove", repos)
-            if not confirm(f"Remove repository `{repos[index]}`?", default=False):
+            repo = choose("Choose repository you want to remove", repos)
+            if not confirm(f"Remove repository `{repo}`?", default=False):
                 raise ContainerError("Canceled")
-            manager.remove_repo(repos[index])
+            manager.remove_repo(repo)
 
         elif url in repos:
             if not confirm(f"Remove repository `{url}`?", default=False):
@@ -193,12 +195,11 @@ class ExecCommand(BaseCommand):
                             choices=utils.lazy_iter(_iter_installed_container_names))
         action = parser.add_argument("exec_args", nargs="...", metavar="ARGS", help="container exec args")
 
-        if ParserCompleter:
-            class Completer(ParserCompleter):
-                get_parser = lambda _: self._subparser
-                get_args = lambda _, args, **kw: [args.exec_name, *args.exec_args] if args.exec_name else None
+        class Completer(ParserCompleter):
+            get_parser = lambda _: self._subparser
+            get_args = lambda _, args, **kw: [args.exec_name, *args.exec_args] if args.exec_name else None
 
-            action.completer = Completer()
+        action.completer = Completer()
 
     def run(self, args: Namespace) -> Optional[int]:
         args = self._subparser.parse_args([args.exec_name, *args.exec_args] if args.exec_name else [])
@@ -225,7 +226,7 @@ class Command(BaseCommandGroup):
     @property
     def known_errors(self) -> List[Type[BaseException]]:
         return super().known_errors + [
-            ContainerError, ConfigError, SubprocessError, GitCommandError, OSError
+            ContainerError, ConfigError, SubprocessError, GitCommandError, OSError, AssertionError,
         ]
 
     def init_subcommands(self) -> Any:
@@ -253,8 +254,7 @@ class Command(BaseCommandGroup):
                          choices=utils.lazy_iter(_iter_container_names))
     def on_command_add(self, names: List[str]):
         containers = manager.add_installed_containers(*names)
-        if not containers:
-            raise ContainerError("No container added")
+        assert containers, "No container added"
         result = sorted(list([container.name for container in containers]))
         self.logger.info(f"Add {', '.join(result)} success")
 
@@ -264,8 +264,7 @@ class Command(BaseCommandGroup):
                          choices=utils.lazy_iter(_iter_container_names))
     def on_command_remove(self, names: List[str], force: bool = False):
         containers = manager.remove_installed_containers(*names, force=force)
-        if not containers:
-            raise ContainerError("No container removed")
+        assert containers, "No container removed"
         result = sorted(list([container.name for container in containers]))
         self.logger.info(f"Remove {', '.join(result)} success")
 
@@ -304,11 +303,17 @@ class Command(BaseCommandGroup):
         if not name:
             up_options.extend(["--remove-orphans"])
 
+        for key in ("http_proxy","https_proxy","all_proxy","no_proxy"):
+            if key in os.environ:
+                build_options.extend(["--build-arg", f"{key}={os.environ[key]}"])
+            key = key.upper()
+            if key in os.environ:
+                build_options.extend(["--build-arg", f"{key}={os.environ[key]}"])
+
         services = []
         if name:
             services.extend(manager.containers[name].services.keys())
-            if not services:
-                raise ContainerError(f"No service found in container `{name}`")
+            assert services, f"No service found in container `{name}`"
 
         with self._notify_start(target_containers):
             if build:
@@ -341,8 +346,7 @@ class Command(BaseCommandGroup):
         services = []
         if name:
             services.extend(manager.containers[name].services.keys())
-            if not services:
-                raise ContainerError(f"No service found in container `{name}`")
+            assert services, f"No service found in container `{name}`"
 
         with self._notify_stop(target_containers):
             manager.create_docker_compose_process(
@@ -371,8 +375,7 @@ class Command(BaseCommandGroup):
         services = []
         if name:
             services.extend(manager.containers[name].services.keys())
-            if not services:
-                raise ContainerError(f"No service found in container `{name}`")
+            assert services, f"No service found in container `{name}`"
 
         with self._notify_stop(target_containers):
             manager.create_docker_compose_process(
