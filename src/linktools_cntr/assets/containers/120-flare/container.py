@@ -43,18 +43,18 @@ class Container(BaseContainer):
             WILDCARD_DOMAIN=True,
             FLARE_TAG="latest",
             FLARE_DOAMIN=self.get_nginx_domain(""),
-            FLARE_EXPOSE_PORT=Config.Alias(type=int, default=0),
-            FLARE_ENABLE_LOGIN=Config.Confirm(default=False, cached=True),
+            FLARE_EXPOSE_PORT=Config.Property(type=int) | 0,
+            FLARE_ENABLE_LOGIN=Config.Confirm(cached=True) | False,
             FLARE_USER=Config.Lazy(
                 lambda cfg:
-                Config.Prompt(default="admin", cached=True)
-                if cfg.get("FLARE_ENABLE_LOGIN", type=bool)
+                Config.Prompt(cached=True) | "admin"
+                if cfg.get("FLARE_ENABLE_LOGIN")
                 else ""
             ),
             FLARE_PASSWORD=Config.Lazy(
                 lambda cfg:
                 Config.Prompt(cached=True)
-                if cfg.get("FLARE_ENABLE_LOGIN", type=bool)
+                if cfg.get("FLARE_ENABLE_LOGIN")
                 else ""
             )
         )

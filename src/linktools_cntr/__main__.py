@@ -37,8 +37,8 @@ import yaml
 from git import GitCommandError
 from linktools import environ, utils
 from linktools.cli import BaseCommand, subcommand, SubCommandWrapper, subcommand_argument, SubCommandGroup, \
-    BaseCommandGroup, SubCommand
-from linktools.cli.argparse import KeyValueAction, BooleanOptionalAction, ParserCompleter
+    BaseCommandGroup, SubCommand, CommandParser
+from linktools.cli.argparse import KeyValueAction, BooleanOptionalAction, ArgParseComplete
 from linktools.rich import confirm, choose
 from linktools.types import ConfigError
 
@@ -164,7 +164,7 @@ class ConfigCommand(BaseCommand):
 
     @subcommand("reload", help="reload container configs")
     def on_command_reload(self):
-        manager.config.reload = True
+        manager.config.reload()
         manager.prepare_installed_containers()
 
 
@@ -179,7 +179,7 @@ class ExecCommand(BaseCommand):
 
     @property
     def _subparser(self) -> ArgumentParser:
-        parser = ArgumentParser()
+        parser = CommandParser()
 
         subcommands: List[SubCommand] = []
         for container in manager.get_installed_containers():
@@ -195,9 +195,13 @@ class ExecCommand(BaseCommand):
                             choices=utils.lazy_iter(_iter_installed_container_names))
         action = parser.add_argument("exec_args", nargs="...", metavar="ARGS", help="container exec args")
 
-        class Completer(ParserCompleter):
-            get_parser = lambda _: self._subparser
-            get_args = lambda _, args, **kw: [args.exec_name, *args.exec_args] if args.exec_name else None
+        class Completer(ArgParseComplete.Completer):
+
+            def get_parser(_):
+                return self._subparser
+
+            def get_args(_, args, **kw):
+                return [args.exec_name, *args.exec_args] if args.exec_name else None
 
         action.completer = Completer()
 
@@ -303,7 +307,7 @@ class Command(BaseCommandGroup):
         if not name:
             up_options.extend(["--remove-orphans"])
 
-        for key in ("http_proxy","https_proxy","all_proxy","no_proxy"):
+        for key in ("http_proxy", "https_proxy", "all_proxy", "no_proxy"):
             if key in os.environ:
                 build_options.extend(["--build-arg", f"{key}={os.environ[key]}"])
             key = key.upper()

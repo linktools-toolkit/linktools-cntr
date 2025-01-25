@@ -52,14 +52,14 @@ class Container(BaseContainer):
         return dict(
             NGINX_TAG="1.27.0-alpine",
             WILDCARD_DOMAIN=False,
-            ROOT_DOMAIN=Config.Prompt(default="_", cached=True),
-            HTTP_PORT=Config.Prompt(default=80, type=int, cached=True),
-            HTTPS_ENABLE=Config.Confirm(default=True, cached=True),
+            ROOT_DOMAIN=Config.Prompt(cached=True) | "_",
+            HTTP_PORT=Config.Prompt(type=int, cached=True) | 80,
+            HTTPS_ENABLE=Config.Confirm(cached=True) | True,
             HTTPS_PORT=Config.Lazy(
                 lambda cfg:
-                Config.Prompt(type=int, default=443, cached=True)
-                if cfg.get("HTTPS_ENABLE", type=bool)
-                else Config.Alias(type=int, default=0)
+                Config.Prompt(type=int, cached=True) | 443
+                if cfg.get("HTTPS_ENABLE")
+                else Config.Alias(type=int) | 0
             ),
             ACME_DNS_API=Config.Lazy(
                 lambda cfg:
@@ -72,8 +72,8 @@ class Container(BaseContainer):
                       $ ct-cntr config set ACME_DNS_API=dns_ali Ali_Key=xxx Ali_Secret=yyy
                     """
                 ))
-                if cfg.get("HTTPS_ENABLE", type=bool)
-                else Config.Alias(type=str, default="")
+                if cfg.get("HTTPS_ENABLE")
+                else Config.Property(type=str) | ""
             )
         )
 

@@ -7,6 +7,6 @@ dependencies:
 dev-dependencies: []
 
 release-dependencies:
-  - linktools>=0.8.13
+  - linktools>=0.8.14
 
 optional-dependencies: {}
