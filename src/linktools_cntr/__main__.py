@@ -29,7 +29,7 @@
 import contextlib
 import os
 import sys
-from argparse import Namespace, ArgumentParser
+from argparse import Namespace
 from subprocess import SubprocessError
 from typing import Optional, List, Type, Dict, Tuple, Any
 
@@ -117,7 +117,7 @@ class ConfigCommand(BaseCommand):
     def name(self):
         return "config"
 
-    def init_arguments(self, parser: ArgumentParser) -> None:
+    def init_arguments(self, parser: CommandParser) -> None:
         self.add_subcommands(parser)
 
     def run(self, args: Namespace) -> Optional[int]:
@@ -178,7 +178,7 @@ class ExecCommand(BaseCommand):
         return "exec"
 
     @property
-    def _subparser(self) -> ArgumentParser:
+    def _subparser(self) -> CommandParser:
         parser = CommandParser()
 
         subcommands: List[SubCommand] = []
@@ -190,7 +190,7 @@ class ExecCommand(BaseCommand):
 
         return parser
 
-    def init_arguments(self, parser: ArgumentParser) -> None:
+    def init_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("exec_name", nargs="?", metavar="CONTAINER", help="container name",
                             choices=utils.lazy_iter(_iter_installed_container_names))
         action = parser.add_argument("exec_args", nargs="...", metavar="ARGS", help="container exec args")

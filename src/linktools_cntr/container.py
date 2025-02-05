@@ -382,17 +382,16 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         return path
 
     def choose_service(self) -> Optional[Dict[str, Any]]:
-        services = list(self.services.values())
-        if len(services) == 0:
+        services = self.services
+        if not services:
             raise ContainerError(f"Not found any service in {self}")
-        if len(services) == 1:
-            return services[0]
-        index = choose(
-            "Please choose service",
-            choices=[service.get("container_name") for service in services],
-            default=0
-        )
-        return services[index]
+        keys = tuple(services.keys())
+        key = keys[0] \
+            if len(keys) == 1 \
+            else choose("Please choose service",
+                        choices={key: service.get("container_name") for key, service in self.services.items()},
+                        default=keys[0])
+        return self.services[key]
 
     def get_docker_compose_file(self) -> Optional[Path]:
         destination = None
@@ -483,7 +482,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         )
 
         try:
-            self.logger.debug(f"{self} render template {source} to {destination}")
+            self.logger.debug(f"{self} render template {source} to {destination or 'memory'}")
             template = environment.from_string(utils.read_file(source, text=True))
             result = template.render(context)
             if destination:

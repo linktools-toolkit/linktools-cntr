@@ -11,11 +11,17 @@ sudo apt-get update
 sudo apt-get install -y python3 python3-pip git docker-compose-plugin
 ```
 
-安装linktools-cntr库
+安装最新版linktools-cntr库
 
 ```bash
-# Install linktools library and add repository
 python3 -m pip install -U linktools-cntr
+```
+
+也可以安装开发版linktools-cntr库
+```bash
+python3 -m pip install --ignore-installed \
+  "linktools@ git+https://github.com/linktools-toolkit/linktools.git@master" \
+  "linktools_cntr@ git+https://github.com/linktools-toolkit/linktools-cntr.git@master"
 ```
 
 ## 容器部署
