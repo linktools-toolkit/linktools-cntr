@@ -28,7 +28,7 @@ python3 -m pip install --ignore-installed \
 
 ### Nas (主页、Nextcloud、...) 环境部署
 
-👉 [搭建文档](https://github.com/ice-black-tea/cntr-homelab/blob/master/400-omv/README.md)
+👉 [搭建文档](https://github.com/ice-black-tea/cntr-homelab/blob/master/500-omv/README.md)
 
 ### Xray Server (websocket + ssl + vless) 环境搭建
 
