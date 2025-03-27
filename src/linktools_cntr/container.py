@@ -396,7 +396,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
     def get_docker_compose_file(self) -> Optional[Path]:
         destination = None
         if self.docker_compose:
-            destination = utils.join_path(self.manager.temp_path, "compose", f"{self.name}.yml")
+            destination = utils.join_path(self.manager.data_path, "compose", f"{self.name}.yml")
             destination.parent.mkdir(parents=True, exist_ok=True)
             utils.write_file(destination, yaml.dump(self.docker_compose))
         return destination
@@ -404,7 +404,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
     def get_docker_file_path(self) -> Optional[Path]:
         destination = None
         if self.docker_file:
-            destination = utils.join_path(self.manager.temp_path, "dockerfile", f"{self.name}.Dockerfile")
+            destination = utils.join_path(self.manager.data_path, "dockerfile", f"{self.name}.Dockerfile")
             destination.parent.mkdir(parents=True, exist_ok=True)
             utils.write_file(destination, self.docker_file)
         return destination

@@ -162,6 +162,10 @@ class ContainerManager:
         )
 
     @cached_property
+    def data_path(self):
+        return self.environ.get_data_path("container", create_parent=True)
+
+    @cached_property
     def temp_path(self):
         return self.environ.get_temp_path("container", create_parent=True)
 

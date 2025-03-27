@@ -87,6 +87,23 @@ class Container(BaseContainer):
                     self.get_app_path("conf.d", create_parent=True),
                     dirs_exist_ok=True,
                 )
+
+        root_domain = self.get_config("ROOT_DOMAIN")
+        self.logger.info("Renew nginx certificates if necessary.")
+        self.manager.create_docker_process(
+            "exec", "-it", "nginx",
+            "sh", "-c", f"acme.sh --renew --issue --domain {root_domain} --domain *.{root_domain} "
+                        f"--dns dns_ali "
+                        f"1>/dev/null"
+        ).call()
+        self.manager.create_docker_process(
+            "exec", "-it", "nginx",
+            "sh", "-c", f"acme.sh --install-cert --domain {root_domain} --domain *.{root_domain} "
+                        f"--cert-file /etc/certs/{root_domain}_cert.pem "
+                        f"--key-file /etc/certs/{root_domain}_key.pem "
+                        f"--fullchain-file /etc/certs/{root_domain}_fullchain.pem "
+                        f"1>/dev/null"
+        ).call()
         self.manager.create_docker_process(
             "exec", "-it", "nginx",
             "sh", "-c", "killall nginx 1>/dev/null 2>&1"
