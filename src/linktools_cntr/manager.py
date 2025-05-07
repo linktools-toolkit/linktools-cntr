@@ -30,6 +30,7 @@ import functools
 import json
 import os
 import os.path
+import pathlib
 import shutil
 from typing import TYPE_CHECKING, Dict, Any, List, Union, Callable, Tuple, Set, TypeVar
 
@@ -37,7 +38,6 @@ from filelock import FileLock
 from linktools import utils, Config
 from linktools.decorator import cached_property
 from linktools.types import PathType
-from linktools.utils import join_path
 
 from .container import BaseContainer, SimpleContainer, ContainerError
 from .repository import Repository
@@ -108,6 +108,10 @@ class ContainerManager:
             type=str,
             default=Config.Prompt(default=utils.get_lan_ip())
         )
+
+    @cached_property
+    def root_path(self):
+        return pathlib.Path(os.path.dirname(__file__))
 
     @cached_property
     def app_path(self):
@@ -186,7 +190,7 @@ class ContainerManager:
         containers: List[BaseContainer] = []
 
         self.logger.debug(f"Load containers from assets")
-        asset_path = join_path(os.path.dirname(__file__), "assets", "containers")
+        asset_path = self.root_path / "assets" / "containers"
         for container in self._walk_containers(asset_path, max_level=1):
             containers.append(container)
 
@@ -346,7 +350,7 @@ class ContainerManager:
     ) -> utils.Process:
         if privilege:
             if self.system in ("darwin", "linux") and self.uid != 0:
-                envs = ("http_proxy","https_proxy","all_proxy","no_proxy")
+                envs = ("http_proxy", "https_proxy", "all_proxy", "no_proxy")
                 args = [
                     "sudo",
                     f"--preserve-env={','.join([e.lower() for e in envs] + [e.upper() for e in envs])}",

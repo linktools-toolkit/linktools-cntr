@@ -24,3 +24,6 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 linktools_cntr = ["assets/**"]
+
+[tool.setuptools.exclude-package-data]
+linktools_cntr = ["develop/**"]

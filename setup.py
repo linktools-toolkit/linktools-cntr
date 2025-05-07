@@ -29,6 +29,7 @@
 import os
 
 import yaml
+from jinja2 import Template
 from setuptools import setup
 
 
@@ -37,7 +38,7 @@ def get_root_path(*paths):
 
 
 def get_src_path(*paths):
-    return get_root_path("src", "linktools-cntr", *paths)
+    return get_root_path("src", "linktools_cntr", *paths)
 
 
 if __name__ == '__main__':
@@ -46,6 +47,15 @@ if __name__ == '__main__':
     version = os.environ.get("VERSION", "0.0.1.dev0")
     if version.startswith("v"):
         version = version[len("v"):]
+
+    with open(get_src_path("develop", "metadata"), "rt", encoding="utf-8") as fd_in, \
+            open(get_src_path("metadata.py"), "wt", encoding="utf-8") as fd_out:
+        fd_out.write(
+            Template(fd_in.read()).render(
+                release=release,
+                version=version,
+            )
+        )
 
     with open(get_root_path("requirements.yml"), "rt", encoding="utf-8") as fd:
         data = yaml.safe_load(fd)
@@ -66,5 +76,6 @@ if __name__ == '__main__':
         entry_points={
             "console_scripts": ["ct-cntr = linktools_cntr.__main__:command.main"],
             "linktools_scripts": ["ct-cntr = linktools_cntr.__main__:command.main"],
+            "linktools_updater": ["ct-cntr = linktools_cntr.update:command.main"],
         },
     )

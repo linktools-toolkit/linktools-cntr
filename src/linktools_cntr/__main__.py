@@ -28,7 +28,6 @@
 """
 import contextlib
 import os
-import sys
 from argparse import Namespace
 from subprocess import SubprocessError
 from typing import Optional, List, Type, Dict, Tuple, Any
@@ -37,8 +36,9 @@ import yaml
 from git import GitCommandError
 from linktools import environ, utils
 from linktools.cli import BaseCommand, subcommand, SubCommandWrapper, subcommand_argument, SubCommandGroup, \
-    BaseCommandGroup, SubCommand, CommandParser
+    BaseCommandGroup, SubCommand, CommandParser, UpdateCommand, DevelopUpdater, GitUpdater
 from linktools.cli.argparse import KeyValueAction, BooleanOptionalAction, ArgParseComplete
+from linktools.cli.update import PypiUpdater
 from linktools.rich import confirm, choose
 from linktools.types import ConfigError
 
@@ -125,7 +125,7 @@ class ConfigCommand(BaseCommand):
         if subcommand:
             return subcommand.run(args)
         containers = manager.prepare_installed_containers()
-        manager.create_docker_compose_process(
+        return manager.create_docker_compose_process(
             containers,
             "config",
             privilege=False,
@@ -292,7 +292,8 @@ class Command(BaseCommandGroup):
 
     @subcommand("up", help="deploy installed containers")
     @subcommand_argument("--build", action=BooleanOptionalAction, help="build images before starting")
-    @subcommand_argument("--pull", action=BooleanOptionalAction, help="always attempt to pull a newer version of the image")
+    @subcommand_argument("--pull", action=BooleanOptionalAction,
+                         help="always attempt to pull a newer version of the image")
     @subcommand_argument("name", metavar="CONTAINER", nargs="?", help="container name",
                          choices=utils.lazy_iter(_iter_installed_container_names))
     def on_command_up(self, name: str = None, build: bool = True, pull: str = False):
@@ -332,7 +333,8 @@ class Command(BaseCommandGroup):
 
     @subcommand("restart", help="restart installed containers")
     @subcommand_argument("--build", action=BooleanOptionalAction, help="build images before starting")
-    @subcommand_argument("--pull", action=BooleanOptionalAction, help="always attempt to pull a newer version of the image")
+    @subcommand_argument("--pull", action=BooleanOptionalAction,
+                         help="always attempt to pull a newer version of the image")
     @subcommand_argument("name", metavar="CONTAINER", nargs="?", help="container name",
                          choices=utils.lazy_iter(_iter_installed_container_names))
     def on_command_restart(self, name: str = None, build: bool = True, pull: str = False):
@@ -389,13 +391,6 @@ class Command(BaseCommandGroup):
 
         with self._notify_remove(target_containers):
             pass
-
-    @subcommand("update", help="update scripts and containers")
-    def on_command_update(self):
-        utils.create_process(
-            sys.executable, "-m", "pip", "install", "-U", "linktools", "linktools-cntr"
-        ).check_call()
-        manager.update_repos(force=False)
 
     @classmethod
     @contextlib.contextmanager

@@ -193,7 +193,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         self._enable = value
 
     @property
-    def dependencies(self) -> [str]:
+    def dependencies(self) -> List[str]:
         return []
 
     @property
