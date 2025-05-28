@@ -14,7 +14,7 @@ sudo apt-get install -y python3 python3-pip git docker-compose-plugin
 安装最新版linktools-cntr库
 
 ```bash
-python3 -m pip install -U linktools-cntr
+python3 -m pip install -U linktools linktools-cntr
 ```
 
 也可以安装开发版linktools-cntr库

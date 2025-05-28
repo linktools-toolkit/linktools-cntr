@@ -27,16 +27,7 @@
  /_==__==========__==_ooo__ooo=_/'   /___________,"
 """
 
-def __is_develop():
-    import os
-    path = os.path.join(os.path.dirname(__file__), "develop")
-    return os.path.isdir(path)
-
-
-__name__ = "linktools-cntr"
+__name__ = "{{ config.get('project', 'name') }}"
 __version__ = "{{ version }}"
 __release__ = {{ "True" if release else "False" }}
-__develop__ = __is_develop()
-
-
-del __is_develop
+__develop__ = {{ "True" if develop else "False" }}
