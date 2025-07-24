@@ -7,7 +7,7 @@ services:
 #   {% endif %}
     volumes:
       - '{{ manager.container_host }}:/var/run/docker.sock'
-      - '{{ mkdir(APP_PATH/"data") | chown }}:/data'
+      - '{{ (APP_PATH/"data") | mkdir | chown }}:/data'
     networks:
       - nginx
 

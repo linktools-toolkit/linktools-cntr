@@ -30,7 +30,7 @@ import os
 import re
 import textwrap
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Any, List, Optional, Callable, TypeVar
+from typing import TYPE_CHECKING, Dict, Any, List, Optional, Callable, TypeVar, Iterable
 
 import yaml
 from jinja2 import Environment, TemplateError
@@ -193,7 +193,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         self._enable = value
 
     @property
-    def dependencies(self) -> List[str]:
+    def dependencies(self) -> "Iterable[str]":
         return []
 
     @property
@@ -201,7 +201,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         return {}
 
     @property
-    def exposes(self) -> List[ExposeLink]:
+    def exposes(self) -> "Iterable[ExposeLink]":
         return []
 
     @cached_property

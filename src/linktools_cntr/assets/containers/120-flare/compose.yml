@@ -18,7 +18,7 @@ services:
 #   {% endif %}
       - 'FLARE_GUIDE=1'
     volumes:
-      - '{{ mkdir(APP_PATH/"app") | chown }}:/app'
+      - '{{ (APP_PATH/"app") | mkdir | chown }}:/app'
     networks:
       - nginx
 

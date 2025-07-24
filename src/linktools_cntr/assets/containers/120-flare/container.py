@@ -26,6 +26,7 @@
   / ==ooooooooooooooo==.o.  ooo= //   ,``--{)B     ,"
  /_==__==========__==_ooo__ooo=_/'   /___________,"
 """
+from typing import Iterable
 
 import yaml
 from linktools import Config, utils
@@ -60,7 +61,7 @@ class Container(BaseContainer):
         )
 
     @cached_property
-    def exposes(self) -> [ExposeLink]:
+    def exposes(self) -> "Iterable[ExposeLink]":
         return [
             self.expose_other("在线工具集合", "tools", "", "https://tool.lu/"),
             self.expose_other("在线正则表达式", "regex", "", "https://regex101.com/"),
