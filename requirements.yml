@@ -3,6 +3,7 @@ dependencies:
   - GitPython
   - jinja2
   - pyyaml
+  - dotenv
 
 dev-dependencies: []
 

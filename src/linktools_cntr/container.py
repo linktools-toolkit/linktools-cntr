@@ -119,8 +119,10 @@ class NginxMixin:
 
         return Config.Lazy(get_domain)
 
-    def write_nginx_conf(self: "BaseContainer", domain: str, template: PathType, name: str = None, https: bool = True):
+    def write_nginx_conf(self: "BaseContainer", domain: str, template: PathType = None, *, name: str = None, https: bool = True, url: str = None):
         nginx = self.manager.containers["nginx"]
+        if not template and not url:
+            raise ContainerError("`template` and `url` arguments may not be empty at the same time")
         if domain and nginx.enable:
             if not self.get_config("HTTPS_ENABLE", type=bool):
                 https = False
@@ -130,11 +132,11 @@ class NginxMixin:
                 DOMAIN=domain
             )
             self.render_template(
-                template,
+                template or nginx.get_path("default.conf"),
                 nginx.get_app_path("temporary", self.name, f"{domain}_confs", f"{name or self.name}.conf", create_parent=True),
-                DOMAIN=domain
+                DOMAIN=domain,
+                TARGET_URL=url,
             )
-
 
 class ContainerError(Error):
     pass
