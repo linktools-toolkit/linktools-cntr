@@ -119,24 +119,35 @@ class NginxMixin:
 
         return Config.Lazy(get_domain)
 
-    def write_nginx_conf(self: "BaseContainer", domain: str, template: PathType = None, *, name: str = None, https: bool = True, url: str = None):
-        nginx = self.manager.containers["nginx"]
-        if not template and not url:
+    def write_nginx_conf(self: "BaseContainer", domain: str, template: PathType = __missing__, *, name: str = __missing__, url: str = __missing__, https: bool = True):
+        if template is __missing__ and url is __missing__:
             raise ContainerError("`template` and `url` arguments may not be empty at the same time")
-        if domain and nginx.enable:
-            if not self.get_config("HTTPS_ENABLE", type=bool):
-                https = False
-            self.render_template(
-                nginx.get_path("https.conf" if https else "http.conf"),
-                nginx.get_app_path("temporary", self.name, f"{domain}.conf", create_parent=True),
-                DOMAIN=domain
-            )
-            self.render_template(
-                template or nginx.get_path("default.conf"),
-                nginx.get_app_path("temporary", self.name, f"{domain}_confs", f"{name or self.name}.conf", create_parent=True),
-                DOMAIN=domain,
-                TARGET_URL=url,
-            )
+
+        nginx = self.manager.containers["nginx"]
+        if not nginx.enable:
+            self.logger.debug(f"{self} write nginx conf: nginx is disable, skip.")
+        if not domain:
+            self.logger.debug(f"{self} write nginx conf: not found domain, skip.")
+            return
+        if not template:
+            if not url:
+                self.logger.debug(f"{self} write nginx conf: not found url, skip.")
+                return
+            template = nginx.get_path("default.conf")
+
+        if not self.get_config("HTTPS_ENABLE", type=bool):
+            https = False
+        self.render_template(
+            nginx.get_path("https.conf" if https else "http.conf"),
+            nginx.get_app_path("temporary", self.name, f"{domain}.conf", create_parent=True),
+            DOMAIN=domain
+        )
+        self.render_template(
+            template or nginx.get_path("default.conf"),
+            nginx.get_app_path("temporary", self.name, f"{domain}_confs", f"{name or self.name}.conf", create_parent=True),
+            DOMAIN=domain,
+            URL=url,
+        )
 
 class ContainerError(Error):
     pass

@@ -123,6 +123,6 @@ class Container(BaseContainer):
         )
 
         self.write_nginx_conf(
-            self.get_config("FLARE_DOAMIN"),
-            self.get_path("nginx.conf"),
+            domain=self.get_config("FLARE_DOAMIN"),
+            url="http://flare:5005",
         )
