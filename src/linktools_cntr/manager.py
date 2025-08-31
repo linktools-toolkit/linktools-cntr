@@ -32,20 +32,16 @@ import os
 import os.path
 import pathlib
 import shutil
-from typing import TYPE_CHECKING, Dict, Any, List, Union, Callable, Tuple, Set, TypeVar
+from typing import TYPE_CHECKING, Dict, Any, List, Union, Callable, Tuple, Set
 
-from filelock import FileLock
 from linktools import utils, Config
 from linktools.decorator import cached_property
-from linktools.types import PathType
-
+from linktools.types import PathType, FileCache
 from .container import BaseContainer, SimpleContainer, ContainerError
 from .repository import Repository
 
 if TYPE_CHECKING:
     from linktools import BaseEnviron
-
-    T = TypeVar("T")
 
 
 class ContainerManager:
@@ -71,7 +67,7 @@ class ContainerManager:
         self.docker_container_name = "container.py"
         self.docker_compose_names = ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml")
 
-        self._file_caches = {}
+        self._setting_cache = {}
 
     @property
     def debug(self) -> bool:
@@ -174,16 +170,56 @@ class ContainerManager:
         return self.environ.get_temp_path("container", create_parent=True)
 
     @cached_property
+    def setting_path(self):
+        path = utils.join_path(self.data_path, "setting")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @cached_property
+    def _settings(self):
+        settings = FileCache(self.setting_path / "manager")
+
+        config_path = self.environ.get_data_path("container", "config", "containers.yml")
+        repo_path = self.environ.get_data_path("container", "repo", "repo.json")
+        repo_lock = self.environ.get_data_path("container", "repo", "repo.lock")
+
+        if os.path.isfile(config_path) or os.path.isfile(repo_path):
+            with settings.open() as data:
+                if os.path.isfile(config_path):
+                    self.logger.warning("Found old config file, try to migrate.")
+                    try:
+                        with open(config_path) as fd:
+                            data.set("INSTALLED_CONTAINERS", json.load(fd))
+                        utils.remove_file(config_path.parent)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to load old config file: {e}")
+
+                if os.path.isfile(repo_path):
+                    self.logger.warning("Found old repo file, try to migrate.")
+                    try:
+                        with open(repo_path) as fd:
+                            data.set("INSTALLED_REPOS", json.load(fd))
+                        utils.remove_file(repo_path)
+                        utils.remove_file(repo_lock)
+                    except:
+                        self.logger.warning(f"Failed to load old repo file: {e}")
+
+        return settings
+
+    @cached_property
+    def _repo_path(self):
+        return self.environ.get_data_path("container", "repo", create_parent=True)
+
+    @cached_property
     def containers(self) -> Dict[str, BaseContainer]:
         result = dict()
         for container in self._load_containers():
             if container.name in result:
                 self.logger.debug(f"Container `{container.name}` already exists, overwrite.")
             result[container.name] = container
-        with self._config_lock:
-            for name in self._load_json_file(self._config_path):
-                if name not in result:
-                    self.logger.warning(f"Not found installed container `{name}`, skip.")
+        for name in self._load_setting("INSTALLED_CONTAINERS", default=[]):
+            if name not in result:
+                self.logger.warning(f"Not found installed container `{name}`, skip.")
         return result
 
     def _load_containers(self) -> List[BaseContainer]:
@@ -243,7 +279,7 @@ class ContainerManager:
                 return
 
     def get_installed_containers(self, resolve: bool = True) -> List[BaseContainer]:
-        with self._config_lock:
+        with self._settings.lock():
             containers = self._load_installed_containers()
         if resolve:
             containers = self.resolve_depend_containers(containers)
@@ -286,7 +322,7 @@ class ContainerManager:
         return containers
 
     def add_installed_containers(self, *names: str) -> List[BaseContainer]:
-        with self._config_lock:
+        with self._settings.lock():
             result = set()
             for name in names:
                 container = self.containers.get(name, None)
@@ -298,7 +334,7 @@ class ContainerManager:
             return list(result)
 
     def remove_installed_containers(self, *names: str, force: bool = False) -> List[BaseContainer]:
-        with self._config_lock:
+        with self._settings.lock():
             containers = self._load_installed_containers(reload=True)
 
             result = set()
@@ -331,16 +367,13 @@ class ContainerManager:
 
     def _load_installed_containers(self, reload: bool = False) -> List[BaseContainer]:
         result = set()
-        for name in self._load_json_file(self._config_path, reload=reload, default=()):
+        for name in self._load_setting("INSTALLED_CONTAINERS", reload=reload, default=[]):
             if name in self.containers:
                 result.add(self.containers[name])
         return list(result)
 
     def _dump_installed_containers(self, containers: List[BaseContainer]) -> None:
-        self._dump_json_file(
-            self._config_path,
-            list(set([container.name for container in containers])),
-        )
+        self._dump_setting("INSTALLED_CONTAINERS", list(set([container.name for container in containers])))
 
     def create_process(
             self,
@@ -390,7 +423,8 @@ class ContainerManager:
         options.extend(["--project-name", self.config.get("COMPOSE_PROJECT_NAME")])
         return self.create_docker_process("compose", *options, *args, privilege=privilege, **kwargs)
 
-    def change_file_owner(self, path: PathType, uid: int, gid: int, force: bool = False, privilege: bool = False) -> None:
+    def change_file_owner(self, path: PathType, uid: int, gid: int, force: bool = False,
+                          privilege: bool = False) -> None:
         if not os.path.exists(path):
             self.logger.debug(f"Path not found: {path}")
             return
@@ -409,14 +443,11 @@ class ContainerManager:
                 raise e
 
     def get_all_repos(self) -> Dict[str, Dict[str, str]]:
-        with self._repo_lock:
-            repos = self._load_json_file(self._repo_config_path)
-        return repos
+        return self._load_setting("INSTALLED_REPOS", default={})
 
     def add_repo(self, url: str, branch: str = None, force: bool = False):
-
-        with self._repo_lock:
-            repos = self._load_json_file(self._repo_config_path, reload=True)
+        with self._settings.lock("repo"):
+            repos = self._load_setting("INSTALLED_REPOS", reload=True, default={})
 
             def ensure_repo_not_exist(key):
                 if key not in repos:
@@ -424,7 +455,7 @@ class ContainerManager:
                 if not force:
                     raise ContainerError(f"Repository `{key}` already exists.")
                 self._remove_repo_file(repos.pop(key))
-                self._dump_json_file(self._repo_config_path, repos)
+                self._dump_setting("INSTALLED_REPOS", repos)
 
             if url.startswith("http://") or url.startswith("https://") or \
                     url.startswith("ssh://") or url.startswith("git@"):
@@ -447,7 +478,7 @@ class ContainerManager:
                 os.symlink(path, repo_path, target_is_directory=True)
                 repos[path] = dict(type="local", repo_path=repo_path, repo_name=repo_name)
 
-            self._dump_json_file(self._repo_config_path, repos)
+            self._dump_setting("INSTALLED_REPOS", repos)
 
     def update_repos(self, force: bool = False):
         for url, meta in self.get_all_repos().items():
@@ -467,12 +498,12 @@ class ContainerManager:
                 repo.update_with_progress()
 
     def remove_repo(self, url: str):
-        with self._repo_lock:
-            repos = self._load_json_file(self._repo_config_path, reload=True)
+        with self._settings.lock("repo"):
+            repos = self._load_setting("INSTALLED_REPOS", reload=True, default={})
             if url not in repos:
                 raise ContainerError(f"Repository `{url}` not found.")
             self._remove_repo_file(repos.pop(url))
-            self._dump_json_file(self._repo_config_path, repos)
+            self._dump_setting("INSTALLED_REPOS", repos)
 
     def _choose_repo_path(self, name: str):
         index = 0
@@ -492,42 +523,16 @@ class ContainerManager:
                 self.logger.info(f"Remove directory {repo_path}")
                 shutil.rmtree(repo_path, ignore_errors=True)
 
-    @cached_property
-    def _config_lock(self):
-        return FileLock(self.environ.get_data_path("container", "config", "container.lock", create_parent=True))
-
-    @cached_property
-    def _config_path(self):
-        return self.environ.get_data_path("container", "config", "containers.yml", create_parent=True)
-
-    @cached_property
-    def _repo_lock(self):
-        return FileLock(self.environ.get_data_path("container", "repo", "repo.lock", create_parent=True))
-
-    @cached_property
-    def _repo_path(self):
-        return self.environ.get_data_path("container", "repo", create_parent=True)
-
-    @cached_property
-    def _repo_config_path(self):
-        return self.environ.get_data_path("container", "repo", "repo.json", create_parent=True)
-
-    def _load_json_file(self, path: PathType, reload: bool = False, default: Any = None) -> Union[Dict, List, Tuple]:
+    def _load_setting(self, key: str, reload: bool = False, default: Any = None) -> Union[Dict, List, Tuple]:
         if reload:
-            self._file_caches.pop(path, None)
-        elif path in self._file_caches:
-            return self._file_caches[path]
-        if os.path.exists(path):
-            try:
-                self._file_caches[path] = json.loads(utils.read_file(path, text=True))
-                return self._file_caches[path]
-            except Exception as e:
-                self.logger.warning(f"Failed to load config file {path}: {e}")
-        return default if default is not None else {}
+            self._setting_cache.pop(key, None)
+        elif key in self._setting_cache:
+            return self._setting_cache[key]
+        with self._settings.open() as data:
+            result = self._setting_cache[key] = data.get(key, default)
+            return result
 
-    def _dump_json_file(self, path: PathType, config: Union[Dict, List, Tuple]):
-        try:
-            self._file_caches.pop(path, None)
-            utils.write_file(path, json.dumps(config, indent=2, ensure_ascii=False))
-        except Exception as e:
-            self.logger.warning(f"Failed to dump config file {path}: {e}")
+    def _dump_setting(self, key: str, setting: Union[Dict, List, Tuple]):
+        self._setting_cache.pop(key, None)
+        with self._settings.open() as data:
+            data.set(key, setting)

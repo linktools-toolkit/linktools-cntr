@@ -43,10 +43,8 @@ from linktools.rich import choose
 from linktools.types import PathType, Error
 
 if TYPE_CHECKING:
+    from linktools.types import T, ConfigType
     from .manager import ContainerManager
-    from linktools._config import ConfigType
-
-    T = TypeVar("T")
 
 
 class ExposeCategory:
@@ -137,7 +135,7 @@ class NginxMixin:
             if not template:
                 if not url:
                     raise ContainerError("not found url")
-                template = nginx.get_path("default.conf")
+                template = nginx.get_source_path("default.conf")
 
             if not self.get_config("HTTPS_ENABLE", type=bool):
                 https = False
@@ -145,7 +143,7 @@ class NginxMixin:
             conf_path.parent.mkdir(parents=True, exist_ok=True)
             sub_conf_path.parent.mkdir(parents=True, exist_ok=True)
             self.render_template(
-                nginx.get_path("https.conf" if https else "http.conf"),
+                nginx.get_source_path("https.conf" if https else "http.conf"),
                 conf_path,
                 DOMAIN=domain
             )
@@ -236,7 +234,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
     @cached_property
     def docker_compose(self) -> Optional[Dict[str, Any]]:
         for name in self.manager.docker_compose_names:
-            path = self.get_path(name)
+            path = self.get_source_path(name)
             if not os.path.exists(path):
                 continue
             data = self.render_template(path)
@@ -261,7 +259,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
                                 "dockerfile": str(path)
                             }
                     if "env_file" not in service:
-                        path = self.get_path(".env")
+                        path = self.get_source_path(".env")
                         if path and os.path.exists(path):
                             service["env_file"] = [
                                 str(path)
@@ -271,7 +269,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
 
     @cached_property
     def docker_file(self) -> Optional[str]:
-        path = self.get_path("Dockerfile")
+        path = self.get_source_path("Dockerfile")
         if os.path.exists(path):
             return self.render_template(path)
         return None
@@ -377,7 +375,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
     def get_config(self, key: str, type: "ConfigType" = None, default: Any = __missing__) -> "T":
         return self.manager.config.get(key, type=type, default=default)
 
-    def get_path(self, *paths: str) -> Path:
+    def get_source_path(self, *paths: str) -> Path:
         return utils.join_path(self.root_path, *paths)
 
     def get_app_path(self, *paths: str, create_parent: bool = False) -> Path:
@@ -439,7 +437,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         return destination
 
     def get_docker_context_path(self) -> Path:
-        return self.get_path()
+        return self.get_source_path()
 
     def is_depend_on(self, name: str):
         next_items = set(self.dependencies)
@@ -484,7 +482,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         context.update(
             DEBUG=self.manager.debug,
 
-            CONTAINER_PATH=utils.lazy_load(self.get_path),
+            SOURCE_PATH=utils.lazy_load(self.get_source_path),
             APP_PATH=utils.lazy_load(self.get_app_path),
             APP_DATA_PATH=utils.lazy_load(self.get_app_data_path),
             USER_DATA_PATH=utils.lazy_load(self.get_user_data_path),
