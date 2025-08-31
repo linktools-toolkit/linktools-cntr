@@ -40,7 +40,7 @@ from linktools.cli import subcommand, subcommand_argument
 from linktools.decorator import cached_property
 from linktools.metadata import __missing__
 from linktools.rich import choose
-from linktools.types import PathType, Error
+from linktools.types import PathType, Error, FileCache
 
 if TYPE_CHECKING:
     from linktools.types import T, ConfigType
@@ -230,6 +230,10 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
     @property
     def exposes(self) -> "Iterable[ExposeLink]":
         return []
+
+    @property
+    def settings(self) -> FileCache:
+        return FileCache(self.manager.setting_path / "app" / self.name)
 
     @cached_property
     def docker_compose(self) -> Optional[Dict[str, Any]]:
