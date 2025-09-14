@@ -158,9 +158,13 @@ class NginxMixin:
             self.logger.debug(f"{self} write nginx conf: {e}, skip.")
 
             utils.remove_file(sub_conf_path)
-            if not any(f.endswith(".conf") for f in os.listdir(sub_conf_path.parent)):
-                utils.remove_file(sub_conf_path.parent)
-                utils.remove_file(conf_path)
+            if sub_conf_path.parent.exists():
+                try:
+                    if not any(f.endswith(".conf") for f in os.listdir(sub_conf_path.parent)):
+                        utils.remove_file(sub_conf_path.parent)
+                        utils.remove_file(conf_path)
+                except:
+                    pass
 
 
 class ContainerError(Error):
