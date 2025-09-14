@@ -237,37 +237,45 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
 
     @cached_property
     def docker_compose(self) -> Optional[Dict[str, Any]]:
-        for name in self.manager.docker_compose_names:
-            path = self.get_source_path(name)
-            if not os.path.exists(path):
-                continue
-            data = self.render_template(path)
-            data = yaml.safe_load(data)
-            if "services" in data and isinstance(data["services"], dict):
-                for name, service in data["services"].items():
-                    if not isinstance(service, dict):
-                        continue
-                    service.setdefault("container_name", name)
-                    service.setdefault("restart", "unless-stopped")
-                    service.setdefault("logging", {
-                        "driver": "json-file",
-                        "options": {
-                            "max-size": "10m",
-                        }
-                    })
-                    if "image" not in service and "build" not in service:
-                        path = self.get_docker_file_path()
-                        if path and os.path.exists(path):
-                            service["build"] = {
-                                "context": str(self.get_docker_context_path()),
-                                "dockerfile": str(path)
+        with self.settings.open() as settings:
+            mount_paths = settings.get("mount_paths", {})
+            for name in self.manager.docker_compose_names:
+                path = self.get_source_path(name)
+                if not os.path.exists(path):
+                    continue
+                data = self.render_template(path)
+                data = yaml.safe_load(data)
+                if "services" in data and isinstance(data["services"], dict):
+                    for name, service in data["services"].items():
+                        if not isinstance(service, dict):
+                            continue
+                        service.setdefault("container_name", name)
+                        service.setdefault("restart", "unless-stopped")
+                        service.setdefault("logging", {
+                            "driver": "json-file",
+                            "options": {
+                                "max-size": "10m",
                             }
-                    if "env_file" not in service:
-                        path = self.get_source_path(".env")
-                        if path and os.path.exists(path):
-                            service["env_file"] = [
-                                str(path)
-                            ]
+                        })
+                        if "image" not in service and "build" not in service:
+                            path = self.get_docker_file_path()
+                            if path and os.path.exists(path):
+                                service["build"] = {
+                                    "context": str(self.get_docker_context_path()),
+                                    "dockerfile": str(path)
+                                }
+                        if "env_file" not in service:
+                            path = self.get_source_path(".env")
+                            if path and os.path.exists(path):
+                                service["env_file"] = [
+                                    str(path)
+                                ]
+                        container_paths = mount_paths.get(service.get("container_name"), {})
+                        if container_paths:
+                            volumes = service.setdefault("volumes", [])
+                            for container_path in container_paths.values():
+                                if container_path not in volumes:
+                                    volumes.append(container_path)
                 return data
         return None
 
@@ -315,8 +323,9 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
     @subcommand_argument("-c", "--command", help="shell command")
     @subcommand_argument("--privileged", help="give extended privileges to the command")
     @subcommand_argument("-u", "--user", help="Username or UID (format: \"<name|uid>[:<group|gid>]\")")
-    def on_exec_shell(self, command: str = None, privileged: bool = False, user: str = None):
-        service = self.choose_service()
+    @subcommand_argument("--service", dest="service_name" , help="service name")
+    def on_exec_shell(self, command: str = None, privileged: bool = False, user: str = None, service_name: str = None):
+        service = self.choose_service(service_name)
 
         options = []
         if privileged:
@@ -354,9 +363,11 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
                          help="show logs since timestamp (e.g. \"2013-01-02T13:23:37Z\") or relative (e.g. \"42m\" for 42 minutes)")
     @subcommand_argument("--until", metavar="string",
                          help="show logs before a timestamp (e.g. \"2013-01-02T13:23:37Z\") or relative (e.g. \"42m\" for 42 minutes)")
+    @subcommand_argument("--service", dest="service_name", help="service name")
     def on_exec_logs(self, follow: bool = True, tail: str = None, timestamps: bool = True,
-                     since: str = None, until: str = None):
-        service = self.choose_service()
+                     since: str = None, until: str = None,
+                     service_name: str = None):
+        service = self.choose_service(service_name)
 
         options = []
         if follow:
@@ -376,56 +387,58 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
             "logs", *options, service.get("container_name")
         ).call()
 
-    @subcommand("ls", help="list mount path")
-    def on_list_file(self):
-        with self.settings.open() as data:
-            mount_paths = data.get("mount_paths") or {}
-            for mount_path in mount_paths.values():
-                self.logger.info(mount_path)
-
     @subcommand("mount", help="mount path")
-    @subcommand_argument("src", nargs='?', help="host path")
-    @subcommand_argument("dest", nargs='?', help="container path")
+    @subcommand_argument("source", nargs='?', help="host path")
+    @subcommand_argument("target", nargs='?', help="container path")
     @subcommand_argument("-p", "--permission", choices=("ro", "rw"))
-    def on_mount(self, src: str = None, dest: str = None, permission: str = "rw"):
-        if not src or not dest:
-            with self.settings.open() as data:
-                mount_paths = data.get("mount_paths") or {}
-                if mount_paths:
-                    self.logger.info(yaml.dump(mount_paths))
-                else:
-                    self.logger.info("Not found any mount path")
-        elif src and dest:
-            src_path = Path(os.path.expanduser(src)).absolute()
-            dest_path = PurePosixPath(dest).as_posix()
-            if not os.path.exists(src_path):
-                self.logger.error(f"{src_path} not exists.")
-                return
-
-            service = self.choose_service()
-            service_name = service.get("container_name")
-            with self.settings.open() as data:
-                mount_paths = data.get("mount_paths") or {}
-                containers_paths = mount_paths.setdefault(service_name, {})
-                container_path = f"{src_path}:{dest_path}:{permission}"
-                if dest_path in containers_paths:
-                    if not confirm(f"{dest_path} is mounted: {mount_paths.get(dest_path)}, overwrite it?"):
-                        self.logger.info(f"cancel")
+    @subcommand_argument("--service", dest="service_name", help="service name")
+    def on_mount(self, source: str = None, target: str = None, permission: str = "rw", service_name: str = None):
+        if not source or not target:
+            if not source and not target:
+                with self.settings.open() as settings:
+                    result = {}
+                    mount_paths = settings.get("mount_paths") or {}
+                    for service in self.services.values():
+                        container_paths = mount_paths.get(service.get("container_name"), {})
+                        if container_paths:
+                            result[service.get("container_name")] = list(container_paths.values())
+                    if not result:
+                        self.logger.info("Not found any mount path")
                         return
-                containers_paths[dest_path] = container_path
-                data.set("mount_paths", mount_paths)
-                self.logger.info(f"add {container_path}")
-        else:
-            self.logger.error("invalid src or dest")
+                    self.logger.info(yaml.dump(result))
+                return
+            if not source:
+                self.logger.error("Argument error: source is empty")
+            if not target:
+                self.logger.error("Argument error: target is empty")
             return
 
+        source_path = Path(os.path.expanduser(source)).absolute()
+        target_path = PurePosixPath(target).as_posix()
+        if not os.path.exists(source_path):
+            self.logger.error(f"{source_path} not exists.")
+            return
+
+        service = self.choose_service(service_name)
+        with self.settings.open() as settings:
+            mount_paths = settings.get("mount_paths") or {}
+            containers_paths = mount_paths.setdefault(service.get("container_name"), {})
+            container_path = f"{source_path}:{target_path}:{permission}"
+            if target_path in containers_paths:
+                if not confirm(f"{target_path} is mounted: {containers_paths.get(target_path)}, overwrite it?"):
+                    self.logger.info(f"cancel")
+                    return
+            containers_paths[target_path] = container_path
+            settings.set("mount_paths", mount_paths)
+            self.logger.info(f"add {container_path}")
+
     @subcommand("umount", help="unmount path")
-    def on_unmount_file(self):
-        service = self.choose_service()
-        service_name = service.get("container_name")
-        with self.settings.open() as data:
-            mount_paths = data.get("mount_paths") or {}
-            containers_paths = mount_paths.setdefault(service_name, {})
+    @subcommand_argument("--service", dest="service_name", help="service name")
+    def on_unmount_file(self, service_name: str = None):
+        service = self.choose_service(service_name)
+        with self.settings.open() as settings:
+            mount_paths = settings.get("mount_paths") or {}
+            containers_paths = mount_paths.setdefault(service.get("container_name"), {})
             if not containers_paths:
                 self.logger.error("Not found any mount path")
                 return
@@ -434,7 +447,7 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
                 choices=containers_paths
             )
             mount_path = containers_paths.pop(dest_path)
-            data.set("mount_paths", mount_paths)
+            settings.set("mount_paths", mount_paths)
             self.logger.info(f"remove {mount_path}")
 
     def get_config(self, key: str, type: "ConfigType" = None, default: Any = __missing__) -> "T":
@@ -473,10 +486,15 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
             path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
-    def choose_service(self) -> Optional[Dict[str, Any]]:
+    def choose_service(self, name: str = None) -> Optional[Dict[str, Any]]:
         services = self.services
         if not services:
             raise ContainerError(f"Not found any service in {self}")
+        if name:
+            for key, service in services.items():
+                if key == name or service.get("container_name") == name:
+                    return service
+            raise ContainerError(f"Not found service '{name}' in {self}")
         keys = tuple(services.keys())
         key = keys[0] \
             if len(keys) == 1 \
