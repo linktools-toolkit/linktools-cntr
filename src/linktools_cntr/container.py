@@ -29,8 +29,8 @@
 import os
 import re
 import textwrap
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Any, List, Optional, Callable, TypeVar, Iterable
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING, Dict, Any, List, Optional, Callable, Iterable
 
 import yaml
 from jinja2 import Environment, TemplateError
@@ -39,7 +39,7 @@ from linktools import utils, Config
 from linktools.cli import subcommand, subcommand_argument
 from linktools.decorator import cached_property
 from linktools.metadata import __missing__
-from linktools.rich import choose
+from linktools.rich import choose, confirm
 from linktools.types import PathType, Error, FileCache
 
 if TYPE_CHECKING:
@@ -375,6 +375,67 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
         return self.manager.create_docker_process(
             "logs", *options, service.get("container_name")
         ).call()
+
+    @subcommand("ls", help="list mount path")
+    def on_list_file(self):
+        with self.settings.open() as data:
+            mount_paths = data.get("mount_paths") or {}
+            for mount_path in mount_paths.values():
+                self.logger.info(mount_path)
+
+    @subcommand("mount", help="mount path")
+    @subcommand_argument("src", nargs='?', help="host path")
+    @subcommand_argument("dest", nargs='?', help="container path")
+    @subcommand_argument("-p", "--permission", choices=("ro", "rw"))
+    def on_mount(self, src: str = None, dest: str = None, permission: str = "rw"):
+        if not src or not dest:
+            with self.settings.open() as data:
+                mount_paths = data.get("mount_paths") or {}
+                if mount_paths:
+                    self.logger.info(yaml.dump(mount_paths))
+                else:
+                    self.logger.info("Not found any mount path")
+        elif src and dest:
+            src_path = Path(os.path.expanduser(src)).absolute()
+            dest_path = PurePosixPath(dest).as_posix()
+            if not os.path.exists(src_path):
+                self.logger.error(f"{src_path} not exists.")
+                return
+
+            service = self.choose_service()
+            service_name = service.get("container_name")
+            with self.settings.open() as data:
+                mount_paths = data.get("mount_paths") or {}
+                containers_paths = mount_paths.setdefault(service_name, {})
+                container_path = f"{src_path}:{dest_path}:{permission}"
+                if dest_path in containers_paths:
+                    if not confirm(f"{dest_path} is mounted: {mount_paths.get(dest_path)}, overwrite it?"):
+                        self.logger.info(f"cancel")
+                        return
+                containers_paths[dest_path] = container_path
+                data.set("mount_paths", mount_paths)
+                self.logger.info(f"add {container_path}")
+        else:
+            self.logger.error("invalid src or dest")
+            return
+
+    @subcommand("umount", help="unmount path")
+    def on_unmount_file(self):
+        service = self.choose_service()
+        service_name = service.get("container_name")
+        with self.settings.open() as data:
+            mount_paths = data.get("mount_paths") or {}
+            containers_paths = mount_paths.setdefault(service_name, {})
+            if not containers_paths:
+                self.logger.error("Not found any mount path")
+                return
+            dest_path = choose(
+                "Choose mount path",
+                choices=containers_paths
+            )
+            mount_path = containers_paths.pop(dest_path)
+            data.set("mount_paths", mount_paths)
+            self.logger.info(f"remove {mount_path}")
 
     def get_config(self, key: str, type: "ConfigType" = None, default: Any = __missing__) -> "T":
         return self.manager.config.get(key, type=type, default=default)
