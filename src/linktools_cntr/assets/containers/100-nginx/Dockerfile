@@ -1,7 +1,7 @@
 FROM nginx:{{ NGINX_TAG }}
 
 # {% if HTTPS_ENABLE %}
-RUN apk --no-cache add openssl socat
+RUN apk --no-cache add openssl socat coreutils
 
 RUN curl https://get.acme.sh | sh -s email=acme@google.com && \
     ln -s ~/.acme.sh/acme.sh /usr/bin/acme.sh && \
