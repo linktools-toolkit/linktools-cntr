@@ -62,6 +62,9 @@ class ContainerManager:
             DOCKER_USER=Config.Prompt(default=os.environ.get("SUDO_USER", self.user).replace(" ", ""), cached=True),
             DOCKER_UID=Config.Lazy(lambda cfg: utils.get_uid(cfg.get("DOCKER_USER", type=str))),
             DOCKER_GID=Config.Lazy(lambda cfg: utils.get_gid(cfg.get("DOCKER_USER", type=str))),
+            SERVICE_RESTART_POLICY="unless-stopped",
+            SERVICE_LOG_DRIVER="json-file",
+            SERVICE_LOG_MAX_SIZE="10m",
         )
 
         self.docker_container_name = "container.py"

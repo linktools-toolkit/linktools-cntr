@@ -254,11 +254,11 @@ class BaseContainer(ExposeMixin, NginxMixin, metaclass=AbstractMetaClass):
                         if not isinstance(service, dict):
                             continue
                         service.setdefault("container_name", name)
-                        service.setdefault("restart", "unless-stopped")
+                        service.setdefault("restart", self.get_config("SERVICE_RESTART_POLICY"))
                         service.setdefault("logging", {
-                            "driver": "json-file",
+                            "driver": self.get_config("SERVICE_LOG_DRIVER"),
                             "options": {
-                                "max-size": "10m",
+                                "max-size": self.get_config("SERVICE_LOG_MAX_SIZE"),
                             }
                         })
                         if "image" not in service and "build" not in service:
